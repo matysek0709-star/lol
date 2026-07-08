@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HexCoach — Live LoL Screen Coach</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Spectral:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-deep:#0A1428;
+    --navy-panel:#0F2140;
+    --navy-card:#152A4A;
+    --gold:#C89B3C;
+    --gold-bright:#F0E6D2;
+    --cyan:#0AC8B9;
+    --red:#C8302B;
+    --text-dim:#8CA0B8;
+    --border:#2A3F5F;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:radial-gradient(ellipse at top, #10203a 0%, var(--navy-deep) 60%);
+    color:var(--gold-bright);
+    font-family:'Spectral', serif;
+    min-height:100vh;
+    padding:2rem 1.25rem 4rem;
+  }
+  .wrap{max-width:920px;margin:0 auto;}
+  header{text-align:center;margin-bottom:2rem;}
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.35em;
+    color:var(--cyan);
+    text-transform:uppercase;
+  }
+  h1{
+    font-family:'Cinzel',serif;
+    font-weight:700;
+    font-size:2.4rem;
+    margin:0.4rem 0 0.3rem;
+    letter-spacing:0.04em;
+    background:linear-gradient(180deg, var(--gold-bright), var(--gold));
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  .subtitle{color:var(--text-dim);font-size:0.95rem;max-width:520px;margin:0 auto;}
+
+  .panel{
+    background:var(--navy-panel);
+    border:1px solid var(--border);
+    border-radius:4px;
+    padding:1.5rem;
+    margin-bottom:1.5rem;
+    position:relative;
+  }
+  .panel::before{
+    content:"";
+    position:absolute; top:0; left:0; right:0; height:2px;
+    background:linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+  .panel h2{
+    font-family:'Cinzel',serif;
+    font-size:0.95rem;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--gold);
+    margin:0 0 1rem;
+  }
+
+  .row{display:flex;gap:1rem;flex-wrap:wrap;align-items:center;}
+  .field{display:flex;flex-direction:column;gap:0.35rem;}
+  label{font-size:0.75rem;color:var(--text-dim);font-family:'JetBrains Mono',monospace;letter-spacing:0.05em;}
+  select, .btn{
+    font-family:'Spectral',serif;
+    font-size:0.95rem;
+    background:var(--navy-card);
+    color:var(--gold-bright);
+    border:1px solid var(--border);
+    border-radius:3px;
+    padding:0.55rem 0.9rem;
+    cursor:pointer;
+  }
+  select:hover, .btn:hover{border-color:var(--gold);}
+  .btn{font-weight:600;transition:all 0.15s;}
+  .btn.primary{background:linear-gradient(180deg,#3a2f10,#20190a);border-color:var(--gold);}
+  .btn.primary:hover{box-shadow:0 0 12px rgba(200,155,60,0.4);}
+  .btn.stop{border-color:var(--red);color:#f0a3a0;}
+  .btn:disabled{opacity:0.4;cursor:not-allowed;}
+  .toggle{display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;color:var(--text-dim);cursor:pointer;user-select:none;}
+  .toggle input{accent-color:var(--gold);width:16px;height:16px;}
+
+  .status-line{display:flex;align-items:center;gap:0.6rem;margin-top:1rem;font-size:0.85rem;color:var(--text-dim);font-family:'JetBrains Mono',monospace;}
+  .dot{width:9px;height:9px;border-radius:50%;background:#555;flex-shrink:0;}
+  .dot.live{background:var(--cyan);box-shadow:0 0 8px var(--cyan);animation:pulse 1.4s infinite;}
+  .dot.thinking{background:var(--gold);box-shadow:0 0 8px var(--gold);animation:pulse 0.8s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.35;}}
+
+  .stage{display:grid;grid-template-columns:220px 1fr;gap:1.5rem;}
+  @media (max-width:640px){.stage{grid-template-columns:1fr;}}
+
+  .hex-frame{
+    position:relative;
+    aspect-ratio:16/9;
+    background:#000;
+    border-radius:4px;
+    overflow:hidden;
+    border:1px solid var(--border);
+  }
+  .hex-frame video, .hex-frame canvas{width:100%;height:100%;object-fit:cover;display:block;}
+  .hex-frame .placeholder{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:var(--text-dim);font-size:0.8rem;text-align:center;padding:1rem;
+  }
+  .hex-ring{
+    position:absolute; inset:6px; border:2px solid transparent; border-radius:6px;
+    pointer-events:none;
+  }
+  .hex-ring.active{border-color:var(--gold);box-shadow:inset 0 0 14px rgba(200,155,60,0.35);}
+
+  .tip-current{
+    background:var(--navy-card);
+    border-left:3px solid var(--gold);
+    border-radius:0 4px 4px 0;
+    padding:1.1rem 1.3rem;
+    min-height:90px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap:0.4rem;
+  }
+  .tip-current .label{font-family:'JetBrains Mono',monospace;font-size:0.7rem;letter-spacing:0.15em;color:var(--cyan);text-transform:uppercase;}
+  .tip-current .text{font-size:1.08rem;line-height:1.5;color:var(--gold-bright);}
+  .tip-current .text.empty{color:var(--text-dim);font-size:0.95rem;}
+
+  .log{margin-top:1rem;max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:0.6rem;padding-right:0.3rem;}
+  .log::-webkit-scrollbar{width:6px;}
+  .log::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+  .log-entry{
+    border-bottom:1px solid var(--border);
+    padding-bottom:0.6rem;
+    font-size:0.88rem;
+    line-height:1.45;
+    color:#D6C9A6;
+  }
+  .log-entry .time{font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--text-dim);margin-right:0.5rem;}
+
+  .note{
+    font-size:0.82rem;
+    color:var(--text-dim);
+    line-height:1.6;
+    border-top:1px solid var(--border);
+    margin-top:1.25rem;
+    padding-top:1rem;
+  }
+  .note b{color:var(--gold);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Hextech field analysis</div>
+    <h1>HexCoach</h1>
+    <p class="subtitle">Shares your screen while you play, checks in periodically, and gives you one sharp tip at a time — positioning, waves, objectives, vision.</p>
+  </header>
+
+  <div class="panel">
+    <h2>Setup</h2>
+    <div class="row">
+      <button class="btn primary" id="shareBtn">Share game screen</button>
+      <button class="btn stop" id="stopBtn" disabled>Stop</button>
+
+      <div class="field">
+        <label>Check-in interval</label>
+        <select id="interval">
+          <option value="10000">Every 10s</option>
+          <option value="15000" selected>Every 15s</option>
+          <option value="30000">Every 30s</option>
+          <option value="60000">Every 60s</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Focus</label>
+        <select id="focus">
+          <option value="general">General coaching</option>
+          <option value="laning">Laning phase</option>
+          <option value="teamfight">Teamfights & objectives</option>
+          <option value="macro">Macro / map awareness</option>
+        </select>
+      </div>
+
+      <label class="toggle" style="align-self:flex-end;">
+        <input type="checkbox" id="voiceToggle">
+        Speak tips aloud
+      </label>
+    </div>
+
+    <div class="status-line">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">Not connected. Click "Share game screen" to begin.</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Live feed</h2>
+    <div class="stage">
+      <div class="hex-frame">
+        <video id="video" autoplay muted playsinline style="display:none;"></video>
+        <div class="placeholder" id="placeholder">No screen shared yet</div>
+        <div class="hex-ring" id="hexRing"></div>
+      </div>
+
+      <div>
+        <div class="tip-current">
+          <div class="label">Latest tip</div>
+          <div class="text empty" id="currentTip">Waiting for the first check-in...</div>
+        </div>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>How this works</h2>
+    <div class="note">
+      <b>What it does:</b> every interval, it grabs one snapshot of your shared screen and asks Claude to look at it as a League coach, then shows (and optionally speaks) one short tip.<br><br>
+      <b>What it can't do:</b> it isn't reading game memory or live combat logs, so it can't react instantly mid-fight — it's a periodic glance, like a coach looking over your shoulder every 10-60 seconds. It also can't hear your game audio.<br><br>
+      <b>Best setup:</b> run this in a desktop browser (Chrome or Edge) on your gaming PC, launch League in windowed or borderless mode, then share that window (not the whole desktop) so the analysis stays focused on the game.<br><br>
+      <b>Privacy:</b> screenshots are sent to Claude for analysis and are not stored by this page. Closing the tab stops everything immediately.
+    </div>
+  </div>
+
+</div>
+
+<canvas id="captureCanvas" style="display:none;"></canvas>
+
+<script>
+const shareBtn = document.getElementById('shareBtn');
+const stopBtn = document.getElementById('stopBtn');
+const video = document.getElementById('video');
+const placeholder = document.getElementById('placeholder');
+const hexRing = document.getElementById('hexRing');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const currentTip = document.getElementById('currentTip');
+const log = document.getElementById('log');
+const canvas = document.getElementById('captureCanvas');
+const intervalSelect = document.getElementById('interval');
+const focusSelect = document.getElementById('focus');
+const voiceToggle = document.getElementById('voiceToggle');
+
+let stream = null;
+let timer = null;
+let analyzing = false;
+
+const focusPrompts = {
+  general: "Give one concise, high-value coaching tip based on whatever is most important right now: positioning, wave state, objectives, itemization, or map awareness.",
+  laning: "Focus specifically on laning fundamentals: wave management, trading patterns, freeze/push decisions, and lane matchup awareness.",
+  teamfight: "Focus specifically on teamfighting and objectives: positioning in fights, target priority, cooldown tracking, and objective timing (dragon/baron/herald).",
+  macro: "Focus specifically on macro play: map awareness, rotations, vision control, and where the player should be moving next."
+};
+
+function setStatus(text, mode){
+  statusText.textContent = text;
+  statusDot.className = 'dot' + (mode ? ' ' + mode : '');
+}
+
+function addLogEntry(text){
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  entry.innerHTML = '<span class="time">' + time + '</span>' + text;
+  log.prepend(entry);
+}
+
+function speak(text){
+  if(!voiceToggle.checked) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.rate = 1.05;
+  window.speechSynthesis.speak(utter);
+}
+
+async function captureFrame(){
+  const w = video.videoWidth, h = video.videoHeight;
+  if(!w || !h) return null;
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, w, h);
+  return canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+}
+
+async function analyzeFrame(){
+  if(analyzing) return;
+  analyzing = true;
+  hexRing.classList.add('active');
+  setStatus('Analyzing current frame...', 'thinking');
+
+  try{
+    const base64 = await captureFrame();
+    if(!base64){
+      setStatus('Waiting for video feed...', 'live');
+      analyzing = false;
+      hexRing.classList.remove('active');
+      return;
+    }
+
+    const focusInstruction = focusPrompts[focusSelect.value];
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 200,
+        messages: [{
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: { type: "base64", media_type: "image/jpeg", data: base64 }
+            },
+            {
+              type: "text",
+              text: "This is a live screenshot from an ongoing League of Legends match. " + focusInstruction + " Reply with ONLY the tip itself, 1-2 sentences, no preamble, no labels like 'Tip:'. If the screenshot doesn't clearly show gameplay (e.g. loading screen, menu, or unclear image), reply with exactly: WAITING"
+            }
+          ]
+        }]
+      })
+    });
+
+    const data = await response.json();
+    const textBlock = data.content.find(b => b.type === 'text');
+    const tip = textBlock ? textBlock.text.trim() : '';
+
+    if(tip && tip !== 'WAITING'){
+      currentTip.textContent = tip;
+      currentTip.classList.remove('empty');
+      addLogEntry(tip);
+      speak(tip);
+    }
+
+    setStatus('Live — next check-in in ' + (parseInt(intervalSelect.value)/1000) + 's', 'live');
+  }catch(err){
+    console.error('HexCoach analysis error:', err);
+    setStatus('Analysis failed — will retry next interval.', 'live');
+  }
+
+  hexRing.classList.remove('active');
+  analyzing = false;
+}
+
+async function startSharing(){
+  try{
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: 5 },
+      audio: false
+    });
+  }catch(err){
+    setStatus('Screen share was cancelled or denied.', '');
+    return;
+  }
+
+  video.srcObject = stream;
+  video.style.display = 'block';
+  placeholder.style.display = 'none';
+
+  shareBtn.disabled = true;
+  stopBtn.disabled = false;
+  intervalSelect.disabled = false;
+
+  setStatus('Live — watching your screen.', 'live');
+
+  stream.getVideoTracks()[0].addEventListener('ended', stopSharing);
+
+  await new Promise(r => video.onloadedmetadata = r);
+
+  analyzeFrame();
+  timer = setInterval(analyzeFrame, parseInt(intervalSelect.value));
+
+  intervalSelect.addEventListener('change', () => {
+    clearInterval(timer);
+    timer = setInterval(analyzeFrame, parseInt(intervalSelect.value));
+  });
+}
+
+function stopSharing(){
+  if(stream){
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  clearInterval(timer);
+  timer = null;
+  video.style.display = 'none';
+  placeholder.style.display = 'flex';
+  shareBtn.disabled = false;
+  stopBtn.disabled = true;
+  hexRing.classList.remove('active');
+  setStatus('Stopped. Click "Share game screen" to start again.', '');
+  window.speechSynthesis.cancel();
+}
+
+shareBtn.addEventListener('click', startSharing);
+stopBtn.addEventListener('click', stopSharing);
+</script>
+
+</body>
+</html>
